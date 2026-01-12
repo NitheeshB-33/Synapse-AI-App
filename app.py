@@ -7,13 +7,13 @@ import io
 
 # ------------------ UI CONFIGURATION ------------------
 st.set_page_config(
-    page_title="Synapse AI | Study Suite",
+    page_title="NotesGenie | Study Suite",
     page_icon="🧠",
     layout="wide"
 )
 
 # ------------------ HEADER ------------------
-st.title("🧠 Synapse AI")
+st.title("NotesGenie")
 st.markdown("### The Ultimate Study Companion")
 st.caption("Summarize • Quiz • Flashcards • Audio Notes")
 st.markdown("---")
@@ -186,4 +186,4 @@ with st.sidebar:
     if input_text:
         st.metric("Word Count", len(input_text.split()))
     st.markdown("---")
-    st.caption("Synapse AI © 2026")
+    st.caption("NotesGenie © 2026")
