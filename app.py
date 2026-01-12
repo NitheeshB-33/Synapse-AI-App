@@ -8,13 +8,13 @@ import io
 # ------------------ UI CONFIGURATION ------------------
 st.set_page_config(
     page_title="NotesGenie | Study Suite",
-    page_icon="🧠",
+    page_icon="🧞",
     layout="wide"
 )
 
 # ------------------ HEADER ------------------
-st.title("NotesGenie")
-st.markdown("### The Ultimate Study Companion")
+st.title("🧞 NotesGenie")
+st.markdown("### Your Magical Study Companion")
 st.caption("Summarize • Quiz • Flashcards • Audio Notes")
 st.markdown("---")
 
@@ -39,6 +39,7 @@ def generate_quiz(text):
         long_words = [w for w in words if len(w) > 4]
         if long_words:
             keyword = random.choice(long_words)
+            # Remove punctuation from answer
             answer = re.sub(r'[^\w\s]', '', keyword)
             question = sentence.replace(keyword, "__________")
             quiz_data.append({"q": question, "a": answer})
@@ -79,10 +80,10 @@ def generate_flashcards(text):
 input_text = st.text_area(
     "📥 Paste your Lecture Notes / Textbook Chapter:", 
     height=250, 
-    placeholder="e.g., Photosynthesis is the process used by plants..."
+    placeholder="e.g., Artificial Intelligence is the simulation of human intelligence processes by machines..."
 )
 
-# Initialize Session State variables if they don't exist
+# Initialize Session State
 if 'generated' not in st.session_state:
     st.session_state['generated'] = False
 if 'summary' not in st.session_state:
@@ -91,14 +92,14 @@ if 'quiz_data' not in st.session_state:
     st.session_state['quiz_data'] = []
 if 'flashcards' not in st.session_state:
     st.session_state['flashcards'] = []
-if 'audio_bytes' not in st.session_state:
-    st.session_state['audio_bytes'] = None
+if 'audio_file' not in st.session_state:
+    st.session_state['audio_file'] = None
 
-if st.button("🚀 Launch Study Mode", type="primary"):
+if st.button("🚀 Grant My Wish (Process)", type="primary"):
     if len(input_text) < 50:
         st.warning("Please paste more text (at least 50 characters).")
     else:
-        with st.spinner("Processing content..."):
+        with st.spinner("NotesGenie is working its magic..."):
             # 1. Generate Summary
             try:
                 summarizer = load_summarizer()
@@ -118,27 +119,26 @@ if st.button("🚀 Launch Study Mode", type="primary"):
             st.session_state['flashcards'] = generate_flashcards(input_text)
             
             # 4. Reset Audio
-            st.session_state['audio_bytes'] = None
+            st.session_state['audio_file'] = None
             
-            # Mark as generated to show tabs
+            # Mark as generated
             st.session_state['generated'] = True
 
-# --- DISPLAY TABS (Only if content is generated) ---
+# --- DISPLAY TABS ---
 if st.session_state['generated']:
     tab1, tab2, tab3, tab4 = st.tabs(["📝 Summary", "❓ Quiz", "📇 Flashcards", "🎧 Audio Note"])
 
     # --- TAB 1: SUMMARY ---
     with tab1:
-        st.success("Abstract Generated")
+        st.success("Summary Generated")
         st.info(st.session_state['summary'])
 
-    # --- TAB 2: QUIZ (FIXED) ---
+    # --- TAB 2: QUIZ ---
     with tab2:
         st.subheader("Knowledge Check")
         if st.session_state['quiz_data']:
             for i, q in enumerate(st.session_state['quiz_data']):
                 st.markdown(f"**Q{i+1}: {q['q']}**")
-                # Using expander instead of button prevents reload issues
                 with st.expander(f"Show Answer {i+1}"):
                     st.success(f"**Answer:** {q['a']}")
         else:
@@ -146,7 +146,7 @@ if st.session_state['generated']:
 
     # --- TAB 3: FLASHCARDS ---
     with tab3:
-        st.subheader("Key Terms Extractor")
+        st.subheader("Key Terms")
         if st.session_state['flashcards']:
             cols = st.columns(2)
             for i, card in enumerate(st.session_state['flashcards']):
@@ -156,29 +156,40 @@ if st.session_state['generated']:
         else:
             st.warning("No flashcards could be generated.")
 
-    # --- TAB 4: AUDIO NOTEBOOK (FIXED) ---
+    # --- TAB 4: AUDIO NOTEBOOK ---
     with tab4:
         st.subheader("🎧 Listen to your Notes")
         
-        # Button to trigger generation
         if st.button("🔊 Generate Audio Podcast"):
             with st.spinner("Synthesizing speech..."):
                 try:
                     text_to_speak = st.session_state['summary']
-                    if text_to_speak:
-                        sound_file = io.BytesIO()
-                        tts = gTTS(text_to_speak, lang='en')
-                        tts.write_to_fp(sound_file)
-                        sound_file.seek(0) # Important: reset pointer to start of file
-                        st.session_state['audio_bytes'] = sound_file
+                    
+                    # Clean text to remove symbols that break the API
+                    clean_text = re.sub(r'[^\w\s.,?!]', '', text_to_speak)
+                    
+                    if clean_text:
+                        # Use 'co.uk' TLD to bypass Google's rate limiting on .com
+                        tts = gTTS(clean_text, lang='en', tld='co.uk')
+                        
+                        # Save to a temporary file
+                        audio_path = "audio_summary.mp3"
+                        tts.save(audio_path)
+                        
+                        # Read file into session state
+                        with open(audio_path, "rb") as f:
+                            st.session_state['audio_file'] = f.read()
+                            
+                        st.success("Audio Ready! Press Play below.")
                     else:
-                        st.warning("No summary available to read.")
+                        st.warning("Summary text is empty or invalid.")
+                        
                 except Exception as e:
-                    st.error(f"Audio Error: {e}")
+                    st.error(f"Audio Error: {e}. Try generating again in a few seconds.")
 
         # Persistent Audio Player
-        if st.session_state['audio_bytes']:
-            st.audio(st.session_state['audio_bytes'], format='audio/mp3')
+        if st.session_state['audio_file']:
+            st.audio(st.session_state['audio_file'], format='audio/mp3')
 
 # ------------------ SIDEBAR ------------------
 with st.sidebar:
