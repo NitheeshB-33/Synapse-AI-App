@@ -1,12 +1,12 @@
-🧠 Synapse AI: The Ultimate Study Suite
+NotesGenie: The Ultimate Study Suite
 
-Synapse AI is a comprehensive study companion designed to transform passive reading into active learning. It combines Neural Summarization with Audio Synthesis and Logic Extraction to create a multi-modal learning experience.
+NotesGenie is a comprehensive study companion designed to transform passive reading into active learning. It combines Neural Summarization with Audio Synthesis and Logic Extraction to create a multi-modal learning experience.
 
-(Built for the IBM SkillsBuild AI Internship)
+
 
 🔗 Live Demo
 
-Click Here to Launch Synapse AI
+Click Here to Launch NotesGenie: https://synapse-ai-app-j6x2vxn6j3om52pjrumjja.streamlit.app/
 
 🚀 Unique Features
 
@@ -30,7 +30,7 @@ Logic: Regex Pattern Matching
 
 📦 Installation
 
-Clone repository.
+Clone repository: https://github.com/NitheeshB-33/NotesGenie.git
 
 pip install -r requirements.txt
 
