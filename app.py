@@ -3,7 +3,7 @@ from transformers import pipeline
 import random
 import re
 from gtts import gTTS
-import os
+import io
 
 # ------------------ UI CONFIGURATION ------------------
 st.set_page_config(
@@ -28,7 +28,12 @@ def generate_quiz(text):
     sentences = re.split(r'(?<=[.!?]) +', text)
     quiz_data = []
     candidates = [s for s in sentences if len(s) > 30 and len(s) < 150]
-    selected = random.sample(candidates, min(len(candidates), 5))
+    
+    # Ensure we don't try to sample more than we have
+    count = min(len(candidates), 5)
+    if count == 0: return []
+    
+    selected = random.sample(candidates, count)
     
     for sentence in selected:
         words = sentence.split()
@@ -41,24 +46,40 @@ def generate_quiz(text):
     return quiz_data
 
 def generate_flashcards(text):
-    # Logic: Look for sentences that define something (e.g., "X is Y")
     sentences = re.split(r'(?<=[.!?]) +', text)
     flashcards = []
     
+    # Strategy 1: Look for "Definition" sentences (Best Quality)
     for sentence in sentences:
-        # Simple heuristic: Sentences with "is a", "refers to", "defined as"
-        if " is " in sentence or " are " in sentence:
+        if " is " in sentence or " are " in sentence or " refers to " in sentence:
             parts = sentence.split(" is ", 1)
             if len(parts) < 2: parts = sentence.split(" are ", 1)
+            if len(parts) < 2: parts = sentence.split(" refers to ", 1)
             
             if len(parts) == 2:
                 term = parts[0].strip()
                 definition = parts[1].strip()
-                # Keep terms short (max 5 words) to ensure they are actually terms
-                if len(term.split()) <= 5 and len(definition) > 10:
+                if len(term.split()) <= 6 and len(definition) > 10:
                     flashcards.append({"term": term, "def": definition})
-    
-    return list(dict((v['term'], v) for v in flashcards).values())[:6] # Dedup and limit
+
+    # Strategy 2: Fallback (If no definitions found, use sentence splitting)
+    # This ensures we ALWAYS show something
+    if len(flashcards) < 3:
+        candidates = [s for s in sentences if len(s) > 40 and len(s) < 120]
+        # Shuffle to get variety
+        random.shuffle(candidates)
+        for sentence in candidates[:5]:
+            # Take the first 3-5 words as the "Term" (Concept)
+            words = sentence.split()
+            if len(words) > 5:
+                # Artificial split for flashcard purpose
+                term = " ".join(words[:3]) + "..."
+                definition = " ".join(words[3:])
+                flashcards.append({"term": term, "def": definition})
+
+    # Deduplicate and limit to 6 cards
+    unique_cards = list({v['term']: v for v in flashcards}.values())
+    return unique_cards[:6]
 
 # ------------------ MAIN INTERFACE ------------------
 input_text = st.text_area(
@@ -69,8 +90,11 @@ input_text = st.text_area(
 
 if st.button("🚀 Launch Study Mode", type="primary"):
     if len(input_text) < 50:
-        st.warning("Please paste more text to generate content.")
+        st.warning("Please paste more text (at least 50 characters) to generate content.")
     else:
+        # Save input to session state to persist across reruns
+        st.session_state['input_text'] = input_text
+        
         # Create Tabs for different features
         tab1, tab2, tab3, tab4 = st.tabs(["📝 Summary", "❓ Quiz", "📇 Flashcards", "🎧 Audio Note"])
         
@@ -90,8 +114,8 @@ if st.button("🚀 Launch Study Mode", type="primary"):
                     st.info(summary_text)
                     st.caption(f"Compressed from {input_len} words to {len(summary_text.split())} words.")
                     
-                    # Save summary for audio tab
-                    st.session_state['summary_cache'] = summary_text
+                    # Store summary in session state for Audio Tab
+                    st.session_state['summary_text'] = summary_text
                     
                 except Exception as e:
                     st.error(f"Error: {e}")
@@ -104,12 +128,12 @@ if st.button("🚀 Launch Study Mode", type="primary"):
                 for i, q in enumerate(quiz):
                     with st.expander(f"Question {i+1}"):
                         st.write(q['q'])
-                        if st.button(f"Show Answer {i+1}"):
+                        if st.button(f"Show Answer {i+1}", key=f"ans_{i}"):
                             st.write(f"**Answer:** {q['a']}")
             else:
-                st.warning("Text too short for quiz generation.")
+                st.warning("Could not generate questions. Text might be too short or complex.")
 
-        # --- TAB 3: FLASHCARDS (NEW!) ---
+        # --- TAB 3: FLASHCARDS (FIXED) ---
         with tab3:
             st.subheader("Key Terms Extractor")
             cards = generate_flashcards(input_text)
@@ -118,23 +142,29 @@ if st.button("🚀 Launch Study Mode", type="primary"):
                 for i, card in enumerate(cards):
                     with cols[i % 2]:
                         st.info(f"**{card['term'].title()}**")
-                        st.caption(card['def'])
+                        st.write(card['def'])
             else:
-                st.warning("No specific definitions found in the text.")
+                st.warning("Could not extract definitions. Try pasting clearer text.")
 
-        # --- TAB 4: AUDIO NOTEBOOK (NEW!) ---
+        # --- TAB 4: AUDIO NOTEBOOK (FIXED) ---
         with tab4:
             st.subheader("🎧 Listen to your Notes")
-            if 'summary_cache' in st.session_state:
-                text_to_speak = st.session_state['summary_cache']
+            if 'summary_text' in st.session_state:
+                text_to_speak = st.session_state['summary_text']
+                
                 if st.button("🔊 Generate Audio Podcast"):
                     with st.spinner("Synthesizing speech..."):
-                        tts = gTTS(text_to_speak, lang='en')
-                        tts.save("audio_summary.mp3")
-                        st.audio("audio_summary.mp3")
-                        st.success("Ready to play!")
+                        try:
+                            # Use memory buffer instead of saving to file (Fixes Cloud Issues)
+                            sound_file = io.BytesIO()
+                            tts = gTTS(text_to_speak, lang='en')
+                            tts.write_to_fp(sound_file)
+                            st.audio(sound_file)
+                            st.success("Playing Audio...")
+                        except Exception as e:
+                            st.error(f"Audio Generation Error: {e}")
             else:
-                st.warning("Please generate a summary in Tab 1 first.")
+                st.info("💡 Tip: A summary will be generated automatically in Tab 1 first.")
 
 # ------------------ SIDEBAR ------------------
 with st.sidebar:
